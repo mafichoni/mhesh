@@ -1,0 +1,47 @@
+services:
+  postgres:
+    image: postgres:16
+    restart: always
+    environment:
+      POSTGRES_USER: mhesh
+      POSTGRES_PASSWORD: mhesh
+      POSTGRES_DB: mhesh
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mhesh"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7
+    restart: always
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [redisdata:/data]
+
+  api:
+    build: ./backend
+    restart: always
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://mhesh:mhesh@postgres:5432/mhesh
+      REDIS_URL: redis://redis:6379/0
+    ports: ["8000:8000"]
+    depends_on:
+      redis: { condition: service_started }
+      postgres: { condition: service_healthy }
+
+  mhesh-cron:
+    build: ./backend
+    restart: always
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://mhesh:mhesh@postgres:5432/mhesh
+      REDIS_URL: redis://redis:6379/0
+    command: python -m app.workers.mhesh_cron
+    depends_on:
+      redis: { condition: service_started }
+      postgres: { condition: service_healthy }
+
+volumes:
+  pgdata:
+  redisdata:
