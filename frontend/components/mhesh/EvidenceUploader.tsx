@@ -1,248 +1,266 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { Upload, MapPin, CheckCircle2, AlertCircle, Loader2, ImagePlus, X } from "lucide-react";
+import React, { useState } from "react";
+import { Camera, Check, Loader2, MapPin, Upload, X } from "lucide-react";
 import { api, errorMessage } from "@/lib/api";
 
-interface EvidenceUploaderProps {
+export interface EvidenceUploaderProps {
   taskId: string;
-  onSuccess: (result: { score?: number; reason?: string }) => void;
+  onSuccess?: (evidenceUrls: string[]) => void;
+  className?: string;
 }
 
-export function EvidenceUploader({ taskId, onSuccess }: EvidenceUploaderProps) {
-  const [photos, setPhotos] = useState<string[]>([]);
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+interface UploadItem {
+  file: File;
+  previewUrl: string;
+}
+
+export function EvidenceUploader({
+  taskId,
+  onSuccess,
+  className = "",
+}: EvidenceUploaderProps) {
+  const [uploads, setUploads] = useState<UploadItem[]>([]);
   const [note, setNote] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [locating, setLocating] = useState(false);
-  const [locationError, setLocationError] = useState<string | null>(null);
-  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // Request browser geolocation on mount
-  useEffect(() => {
-    captureLocation();
-  }, []);
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files) return;
+    const selectedFiles = Array.from(e.target.files);
+
+    const newItems: UploadItem[] = selectedFiles.map((file) => ({
+      file,
+      previewUrl: URL.createObjectURL(file),
+    }));
+
+    setUploads((prev) => [...prev, ...newItems]);
+    setError(null);
+  };
+
+  const removePhoto = (idx: number) => {
+    setUploads((prev) => {
+      const removed = prev[idx];
+      if (removed) {
+        URL.revokeObjectURL(removed.previewUrl);
+      }
+      return prev.filter((_, i) => i !== idx);
+    });
+  };
 
   const captureLocation = () => {
     if (!navigator.geolocation) {
-      setLocationError("Geolocation is not supported by your browser");
+      setError("Geolocation is not supported by your browser.");
       return;
     }
     setLocating(true);
-    setLocationError(null);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setCoords({
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-        });
+        setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         setLocating(false);
       },
       (err) => {
-        setLocationError(`Location capture failed: ${err.message}. Please enable GPS.`);
+        setError(`Failed to capture GPS coordinates: ${err.message}`);
         setLocating(false);
       },
-      { enableHighAccuracy: true, timeout: 15000 }
+      { timeout: 10000, enableHighAccuracy: true }
     );
-  };
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    setUploadingPhoto(true);
-    setSubmitError(null);
-
-    try {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        // 1. Get presigned upload URL
-        const presignRes = await api.post(`/api/mhesh/tasks/${taskId}/evidence-upload-url`);
-        const { upload_url, public_url } = presignRes.data;
-
-        // 2. Upload file directly to R2
-        await fetch(upload_url, {
-          method: "PUT",
-          headers: { "Content-Type": file.type || "image/jpeg" },
-          body: file,
-        });
-
-        setPhotos((prev) => [...prev, public_url]);
-      }
-    } catch (err: unknown) {
-      setSubmitError(errorMessage(err, "Failed to upload photo"));
-    } finally {
-      setUploadingPhoto(false);
-      e.target.value = "";
-    }
-  };
-
-  const removePhoto = (index: number) => {
-    setPhotos((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (photos.length === 0) {
-      setSubmitError("Please upload at least one evidence photo.");
+    if (uploads.length === 0) {
+      setError("Please attach at least one photo as proof of completed work.");
       return;
     }
 
     setSubmitting(true);
-    setSubmitError(null);
+    setError(null);
 
     try {
-      const res = await api.post(`/api/mhesh/tasks/${taskId}/submit-evidence`, {
-        evidence_urls: photos,
+      const uploadedUrls: string[] = [];
+
+      // 1. Upload each photo using presigned URLs
+      for (const item of uploads) {
+        const presignRes = await api.post<{
+          upload_url: string;
+          key: string;
+          public_url: string;
+        }>(`/api/mhesh/tasks/${taskId}/evidence-upload-url`);
+
+        const { upload_url, public_url: pubUrl } = presignRes.data;
+
+        const uploadFetch = await fetch(upload_url, {
+          method: "PUT",
+          headers: {
+            "Content-Type": item.file.type || "image/jpeg",
+          },
+          body: item.file,
+        });
+
+        if (!uploadFetch.ok) {
+          throw new Error(`Failed to upload photo ${item.file.name}`);
+        }
+
+        uploadedUrls.push(pubUrl);
+      }
+
+      // 2. Submit evidence record
+      await api.post(`/api/mhesh/tasks/${taskId}/submit-evidence`, {
+        evidence_urls: uploadedUrls,
         note: note.trim() || undefined,
-        lat: coords?.lat ?? null,
-        lng: coords?.lng ?? null,
+        lat: coords?.lat,
+        lng: coords?.lng,
       });
 
-      const verification = res.data?.verification || {};
-      onSuccess({
-        score: verification.score,
-        reason: verification.reason,
-      });
+      setSuccess(true);
+      onSuccess?.(uploadedUrls);
     } catch (err: unknown) {
-      setSubmitError(errorMessage(err, "Evidence submission failed"));
+      setError(errorMessage(err, "Failed to submit evidence. Please try again."));
     } finally {
       setSubmitting(false);
     }
   };
 
-  return (
-    <form onSubmit={handleSubmit} className="rounded-xl border border-stone-200 bg-white p-6 shadow-sm">
-      <div className="border-b border-stone-100 pb-4">
-        <h3 className="text-lg font-bold text-stone-900">Submit Task Evidence</h3>
-        <p className="mt-1 text-xs text-stone-500">
-          Upload geotagged photos and field verification details. AI checks image authenticity and geolocation.
+  if (success) {
+    return (
+      <div
+        className={`rounded-2xl border border-emerald-500/20 bg-emerald-50/50 p-6 text-center dark:bg-emerald-950/20 ${className}`}
+      >
+        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-600 text-white shadow-sm">
+          <Check size={24} />
+        </div>
+        <h4 className="text-base font-bold text-neutral-900 dark:text-neutral-100">
+          Work Evidence Submitted!
+        </h4>
+        <p className="mt-1 text-xs text-neutral-600 dark:text-neutral-300">
+          The candidate and Mhesh verification engine will review your proof. Once verified, KSh reward will be released directly to your M-Pesa phone.
         </p>
       </div>
+    );
+  }
 
-      {submitError && (
-        <div className="mt-4 flex items-center gap-2 rounded-lg bg-rose-50 p-3 text-xs font-medium text-rose-700">
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          <span>{submitError}</span>
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className={`space-y-4 rounded-2xl border border-black/10 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-neutral-900 ${className}`}
+    >
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
+            Submit Work Proof & Photos
+          </h3>
+          <p className="text-xs text-neutral-500 dark:text-neutral-400">
+            Upload clear photos demonstrating task completion on the ground.
+          </p>
+        </div>
+        <Camera size={20} className="text-emerald-600 dark:text-emerald-400" />
+      </div>
+
+      {/* Upload Drop Zone / Input */}
+      <div>
+        <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-neutral-300 bg-neutral-50 p-6 transition hover:border-emerald-500 hover:bg-neutral-100/50 dark:border-neutral-700 dark:bg-neutral-800/40">
+          <Upload size={24} className="mb-2 text-neutral-400" />
+          <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-200">
+            Click or drag photos to upload
+          </span>
+          <span className="text-[11px] text-neutral-400">
+            Supports JPG, PNG up to 10MB each
+          </span>
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            capture="environment"
+            onChange={handleFileChange}
+            className="hidden"
+          />
+        </label>
+      </div>
+
+      {/* Photo Previews */}
+      {uploads.length > 0 && (
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+          {uploads.map((item, idx) => (
+            <div
+              key={`${item.previewUrl}-${idx}`}
+              className="relative aspect-square overflow-hidden rounded-xl border border-black/10 bg-neutral-100 dark:border-white/10 dark:bg-neutral-800"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={item.previewUrl}
+                alt={`Preview ${idx + 1}`}
+                className="h-full w-full object-cover"
+              />
+              <button
+                type="button"
+                onClick={() => removePhoto(idx)}
+                className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white hover:bg-black/80"
+              >
+                <X size={12} />
+              </button>
+            </div>
+          ))}
         </div>
       )}
 
-      {/* Geolocation Section */}
-      <div className="mt-4 rounded-lg border border-stone-200 bg-stone-50 p-3.5">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <MapPin className={`h-4 w-4 ${coords ? "text-emerald-600" : "text-stone-400"}`} />
-            <span className="text-xs font-semibold text-stone-800">Field Geotag</span>
-          </div>
-          <button
-            type="button"
-            onClick={captureLocation}
-            disabled={locating}
-            className="text-xs font-medium text-emerald-700 hover:underline disabled:opacity-50"
-          >
-            {locating ? "Acquiring GPS..." : coords ? "Re-tag GPS" : "Capture GPS"}
-          </button>
+      {/* GPS Location Capture */}
+      <div className="flex items-center justify-between rounded-xl bg-neutral-50 p-3 text-xs dark:bg-neutral-800/60">
+        <div className="flex items-center gap-2">
+          <MapPin size={15} className="text-emerald-600 dark:text-emerald-400" />
+          <span className="text-neutral-700 dark:text-neutral-300">
+            {coords
+              ? `GPS: ${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}`
+              : "Geotag verification (optional)"}
+          </span>
         </div>
-
-        {coords ? (
-          <div className="mt-2 text-xs font-mono text-emerald-800">
-            Latitude: {coords.lat.toFixed(5)}, Longitude: {coords.lng.toFixed(5)}
-            <span className="ml-2 inline-block rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] text-emerald-900 font-sans">
-              GPS Verified
-            </span>
-          </div>
-        ) : locationError ? (
-          <p className="mt-2 text-xs text-rose-600">{locationError}</p>
-        ) : (
-          <p className="mt-2 text-xs text-stone-500">Acquiring current GPS coordinates...</p>
-        )}
+        <button
+          type="button"
+          onClick={captureLocation}
+          disabled={locating}
+          className="text-xs font-semibold text-emerald-600 hover:underline dark:text-emerald-400"
+        >
+          {locating ? "Locating..." : coords ? "Re-tag GPS" : "Attach GPS"}
+        </button>
       </div>
 
-      {/* Photo Uploader */}
-      <div className="mt-5">
-        <label className="block text-xs font-semibold uppercase tracking-wider text-stone-700">
-          Field Photos ({photos.length} uploaded)
-        </label>
-
-        {photos.length > 0 && (
-          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {photos.map((url, i) => (
-              <div key={i} className="group relative aspect-square overflow-hidden rounded-lg border border-stone-200 bg-stone-100">
-                <img src={url} alt={`Evidence ${i + 1}`} className="h-full w-full object-cover" />
-                <button
-                  type="button"
-                  onClick={() => removePhoto(i)}
-                  className="absolute top-1 right-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-white opacity-90 transition hover:bg-rose-600"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div className="mt-3">
-          <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-stone-300 bg-stone-50/50 p-6 text-center transition hover:border-emerald-600 hover:bg-emerald-50/30">
-            <input
-              type="file"
-              accept="image/*"
-              multiple
-              disabled={uploadingPhoto}
-              onChange={handleFileChange}
-              className="hidden"
-            />
-            {uploadingPhoto ? (
-              <div className="flex flex-col items-center gap-2 text-stone-600">
-                <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
-                <span className="text-xs">Uploading photo to R2 storage...</span>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center gap-1.5 text-stone-600">
-                <ImagePlus className="h-6 w-6 text-stone-400" />
-                <span className="text-xs font-medium text-stone-800">
-                  Click or drag to upload verification photos
-                </span>
-                <span className="text-[11px] text-stone-400">JPG, PNG up to 10MB</span>
-              </div>
-            )}
-          </label>
-        </div>
-      </div>
-
-      {/* Field Notes */}
-      <div className="mt-5">
-        <label className="block text-xs font-semibold uppercase tracking-wider text-stone-700">
-          Field Notes & Summary (Optional)
+      {/* Completion Note */}
+      <div>
+        <label className="mb-1 block text-xs font-medium text-neutral-700 dark:text-neutral-300">
+          Supporter Notes / Comments (Optional)
         </label>
         <textarea
+          rows={2}
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          rows={3}
-          placeholder="E.g. Put up 150 posters along Kibera Olympic stage and bus stop. High pedestrian visibility."
-          className="mt-1 w-full rounded-lg border border-stone-300 p-3 text-sm focus:border-emerald-600 focus:outline-none focus:ring-1 focus:ring-emerald-600"
+          placeholder="e.g. Distributed 200 posters along Market Street and Bunge bus stage..."
+          className="w-full rounded-xl border border-black/10 bg-white p-3 text-xs text-neutral-900 outline-none transition placeholder:text-neutral-400 focus:border-emerald-600 dark:border-white/10 dark:bg-neutral-800 dark:text-neutral-100"
         />
       </div>
 
-      <div className="mt-6">
-        <button
-          type="submit"
-          disabled={submitting || uploadingPhoto || photos.length === 0}
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:opacity-50"
-        >
-          {submitting ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span>Verifying with AI & Submitting...</span>
-            </>
-          ) : (
-            <>
-              <CheckCircle2 className="h-4 w-4" />
-              <span>Submit Evidence for Approval</span>
-            </>
-          )}
-        </button>
-      </div>
+      {error && (
+        <div className="rounded-xl bg-red-50 p-2.5 text-xs text-red-600 dark:bg-red-950/40 dark:text-red-400">
+          {error}
+        </div>
+      )}
+
+      <button
+        type="submit"
+        disabled={submitting || uploads.length === 0}
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50"
+      >
+        {submitting ? (
+          <>
+            <Loader2 size={15} className="animate-spin" />
+            Uploading Evidence & Submitting...
+          </>
+        ) : (
+          `Submit ${uploads.length} Evidence Photo${uploads.length === 1 ? "" : "s"}`
+        )}
+      </button>
     </form>
   );
 }

@@ -1,125 +1,177 @@
-import React from "react";
-import { Download, ExternalLink, Calendar, Coins, Sparkles } from "lucide-react";
+"use client";
+
+import React, { useState } from "react";
+import { Download, ExternalLink, Image as ImageIcon, Sparkles } from "lucide-react";
 import { AiGeneratedTag } from "./AiGeneratedTag";
-import { shortDate } from "@/lib/api";
+import type { OutputFormat } from "@/types/mhesh";
 
-export interface GenerationItem {
-  id: string;
-  style_template: string;
-  prompt: string;
-  output_urls: string[];
-  cost_kes: number;
-  model: string;
-  created_at: string;
-  rejected?: boolean;
-  rejection_reason?: string;
+export interface StudioGridItem {
+  id?: string;
+  url: string;
+  style_template?: string;
+  prompt?: string;
+  formats?: (OutputFormat | string)[];
+  format?: OutputFormat | string;
+  created_at?: string;
+  cost_kes?: number;
 }
 
-interface StudioGridProps {
-  generations: GenerationItem[];
-  emptyMessage?: string;
+export interface StudioGridProps {
+  items?: StudioGridItem[];
+  onOrderPrint?: (item: StudioGridItem) => void;
+  className?: string;
 }
 
-export function StudioGrid({ generations, emptyMessage = "No campaign media generated yet." }: StudioGridProps) {
-  const handleDownload = async (url: string, filename: string) => {
+const formatLabels: Record<string, string> = {
+  story: "Story (9:16)",
+  post: "Post (1:1)",
+  billboard: "Billboard (16:9)",
+  banner: "Banner (3:1)",
+  tshirt: "T-Shirt",
+  cap: "Cap",
+  umbrella: "Umbrella",
+  a3: "A3 Poster",
+};
+
+export function StudioGrid({
+  items = [],
+  onOrderPrint,
+  className = "",
+}: StudioGridProps) {
+  const [downloadingUrl, setDownloadingUrl] = useState<string | null>(null);
+
+  const handleDownload = async (url: string, filename = "mhesh-campaign.jpg") => {
     try {
-      const response = await fetch(url);
-      const blob = await response.blob();
+      setDownloadingUrl(url);
+      const res = await fetch(url);
+      const blob = await res.blob();
       const blobUrl = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = blobUrl;
       a.download = filename;
       document.body.appendChild(a);
       a.click();
-      window.URL.revokeObjectURL(blobUrl);
       document.body.removeChild(a);
+      window.URL.revokeObjectURL(blobUrl);
     } catch {
-      // Direct fallback
+      // Fallback: direct window open
       window.open(url, "_blank");
+    } finally {
+      setDownloadingUrl(null);
     }
   };
 
-  if (generations.length === 0) {
+  if (!items || items.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-stone-300 bg-white/50 p-12 text-center">
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
-          <Sparkles className="h-6 w-6" />
-        </div>
-        <h3 className="mt-3 text-base font-semibold text-stone-900">No media yet</h3>
-        <p className="mt-1 text-sm text-stone-500 max-w-sm">{emptyMessage}</p>
+      <div
+        className={`rounded-2xl border border-dashed border-neutral-300 p-12 text-center dark:border-neutral-700 ${className}`}
+      >
+        <Sparkles className="mx-auto mb-2 text-emerald-600 dark:text-emerald-400" size={32} />
+        <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-100">
+          No generated campaign materials yet
+        </h3>
+        <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+          Choose a campaign style template and generate photo-realistic visuals for your campaign.
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-      {generations.map((gen) =>
-        gen.output_urls.map((url, idx) => {
-          const itemKey = `${gen.id}-${idx}`;
-          return (
-            <div
-              key={itemKey}
-              className="group relative flex flex-col overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm transition hover:shadow-md"
-            >
-              <div className="relative aspect-[4/5] w-full overflow-hidden bg-stone-100">
-                <img
-                  src={url}
-                  alt={gen.prompt || gen.style_template}
-                  className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                  loading="lazy"
-                />
-                <div className="absolute top-3 left-3">
-                  <AiGeneratedTag size="sm" showSubtitle={false} />
-                </div>
-                <div className="absolute top-3 right-3 flex items-center gap-1.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-                  <button
-                    onClick={() => handleDownload(url, `mhesh-${gen.style_template}-${gen.id.slice(0, 8)}.jpg`)}
-                    className="flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-stone-800 shadow-md backdrop-blur-sm hover:bg-white hover:text-emerald-700"
-                    title="Download high-resolution image"
+    <div className={`grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 ${className}`}>
+      {items.map((item, idx) => {
+        const formats = item.formats || (item.format ? [item.format] : ["post"]);
+        const isDownloading = downloadingUrl === item.url;
+
+        return (
+          <div
+            key={item.id || `${item.url}-${idx}`}
+            className="group flex flex-col overflow-hidden rounded-2xl border border-black/10 bg-white shadow-sm transition hover:shadow-md dark:border-white/10 dark:bg-neutral-900"
+          >
+            {/* Image Preview Container */}
+            <div className="relative aspect-[4/5] w-full overflow-hidden bg-neutral-100 dark:bg-neutral-800">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={item.url}
+                alt={item.prompt || "AI Campaign Generation"}
+                className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+                loading="lazy"
+              />
+
+              {/* Formats Overlay */}
+              <div className="absolute left-2.5 top-2.5 flex flex-wrap gap-1.5">
+                {formats.map((fmt) => (
+                  <span
+                    key={fmt}
+                    className="rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm"
                   >
-                    <Download className="h-4 w-4" />
-                  </button>
-                  <a
-                    href={url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-stone-800 shadow-md backdrop-blur-sm hover:bg-white hover:text-emerald-700"
-                    title="Open full size"
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                  </a>
-                </div>
+                    {formatLabels[fmt] || fmt}
+                  </span>
+                ))}
               </div>
 
-              <div className="flex flex-1 flex-col justify-between p-4">
-                <div>
-                  <div className="flex items-center justify-between text-xs text-stone-500">
-                    <span className="font-semibold uppercase tracking-wider text-emerald-800">
-                      {gen.style_template.replace(/_/g, " ")}
-                    </span>
-                    <span className="flex items-center gap-1 font-mono">
-                      <Coins className="h-3 w-3 text-amber-600" />
-                      {gen.cost_kes} KES
-                    </span>
-                  </div>
+              {/* Mandatory AI Generated Tag */}
+              <AiGeneratedTag />
+            </div>
 
-                  <p className="mt-2 text-sm text-stone-700 line-clamp-2">
-                    {gen.prompt || "Kenyan campaign setting portrait."}
+            {/* Metadata & Actions */}
+            <div className="flex flex-1 flex-col justify-between p-4">
+              <div>
+                {item.style_template && (
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                    {item.style_template.replace(/_/g, " ")}
                   </p>
-                </div>
+                )}
 
-                <div className="mt-4 flex items-center justify-between border-t border-stone-100 pt-3 text-xs text-stone-400">
-                  <span className="flex items-center gap-1">
-                    <Calendar className="h-3 w-3" />
-                    {shortDate(gen.created_at)}
-                  </span>
-                  <span className="font-mono text-[10px] text-stone-400">{gen.model}</span>
-                </div>
+                {item.prompt && (
+                  <p className="mt-1 line-clamp-2 text-xs text-neutral-600 dark:text-neutral-300">
+                    {item.prompt}
+                  </p>
+                )}
+              </div>
+
+              <div className="mt-4 flex items-center justify-between gap-2 border-t border-black/5 pt-3 dark:border-white/5">
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleDownload(
+                      item.url,
+                      `mhesh-${item.style_template || "campaign"}-${idx + 1}.jpg`
+                    )
+                  }
+                  disabled={isDownloading}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-black/10 bg-neutral-50 px-3 py-1.5 text-xs font-semibold text-neutral-700 transition hover:bg-neutral-100 dark:border-white/10 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
+                >
+                  <Download size={13} />
+                  <span>{isDownloading ? "Downloading..." : "Download"}</span>
+                </button>
+
+                {onOrderPrint ? (
+                  <button
+                    type="button"
+                    onClick={() => onOrderPrint(item)}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+                  >
+                    <ImageIcon size={13} />
+                    <span>Print Order</span>
+                  </button>
+                ) : (
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
+                    title="Open original"
+                  >
+                    <ExternalLink size={13} />
+                    <span>Full size</span>
+                  </a>
+                )}
               </div>
             </div>
-          );
-        })
-      )}
+          </div>
+        );
+      })}
     </div>
   );
 }
