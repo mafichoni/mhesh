@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { UserPlus, Check, AlertCircle, X, Loader2, Mail, Phone } from "lucide-react";
 import { api, errorMessage } from "@/lib/api";
 
-interface FollowButtonProps {
+export interface FollowButtonProps {
   slug: string;
   candidateName: string;
   className?: string;

@@ -15,7 +15,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { api, errorMessage, isUnauthorized } from "@/lib/api";
-import { StyleCard, CAMPAIGN_STYLES } from "@/components/mhesh/StyleCard";
+import { StyleCard, CAMPAIGN_STYLES, type StyleTemplateInfo } from "@/components/mhesh/StyleCard";
 import { StudioGrid, GenerationItem } from "@/components/mhesh/StudioGrid";
 import { AiGeneratedTag } from "@/components/mhesh/AiGeneratedTag";
 
@@ -206,7 +206,7 @@ export default function StudioPage() {
           </div>
 
           <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            {CAMPAIGN_STYLES.map((style) => (
+            {CAMPAIGN_STYLES.map((style: StyleTemplateInfo) => (
               <StyleCard
                 key={style.id}
                 styleOption={style}

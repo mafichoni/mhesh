@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { Share2, Copy, Check, MessageSquare, Twitter, X, ExternalLink } from "lucide-react";
 import { api } from "@/lib/api";
 
-interface ShareButtonProps {
+export interface ShareButtonProps {
   slug: string;
   candidateName: string;
   office?: string;

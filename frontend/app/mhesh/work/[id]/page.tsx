@@ -237,11 +237,9 @@ export default function SupporterTaskDetailPage() {
             </div>
             <EvidenceUploader
               taskId={task.id}
-              onSuccess={(result) => {
+              onSuccess={() => {
                 setSuccessMsg(
-                  `Evidence submitted! AI confidence score: ${Math.round(
-                    (result.score || 0.9) * 100
-                  )}%. The campaign manager will review and approve payout.`
+                  "Evidence submitted! The campaign manager will review and approve payout."
                 );
                 loadData();
               }}

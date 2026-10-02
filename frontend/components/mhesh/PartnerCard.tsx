@@ -58,11 +58,12 @@ export function PartnerCard({
                   </Link>
                 </h3>
                 {verified && (
-                  <CheckCircle2
-                    size={15}
-                    className="flex-shrink-0 text-emerald-600 dark:text-emerald-400"
-                    title="Verified Print Partner"
-                  />
+                  <span title="Verified Print Partner">
+                    <CheckCircle2
+                      size={15}
+                      className="flex-shrink-0 text-emerald-600 dark:text-emerald-400"
+                    />
+                  </span>
                 )}
               </div>
 

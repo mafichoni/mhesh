@@ -12,6 +12,8 @@ import {
 import { shortDate } from "@/lib/api";
 import type { MheshTaskItem, TaskCategory, TaskStatus } from "@/types/mhesh";
 
+export type TaskItem = MheshTaskItem;
+
 export interface TaskCardProps {
   task?: MheshTaskItem;
   id?: string;
@@ -22,6 +24,7 @@ export interface TaskCardProps {
   rewardKes?: number;
   deadline?: string | null;
   status?: TaskStatus | string;
+  role?: string;
   href?: string;
   className?: string;
 }

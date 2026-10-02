@@ -16,8 +16,11 @@ export interface StudioGridItem {
   cost_kes?: number;
 }
 
+export type GenerationItem = StudioGridItem;
+
 export interface StudioGridProps {
   items?: StudioGridItem[];
+  generations?: StudioGridItem[];
   onOrderPrint?: (item: StudioGridItem) => void;
   className?: string;
 }
@@ -35,9 +38,11 @@ const formatLabels: Record<string, string> = {
 
 export function StudioGrid({
   items = [],
+  generations,
   onOrderPrint,
   className = "",
 }: StudioGridProps) {
+  const allItems = items.length > 0 ? items : (generations || []);
   const [downloadingUrl, setDownloadingUrl] = useState<string | null>(null);
 
   const handleDownload = async (url: string, filename = "mhesh-campaign.jpg") => {

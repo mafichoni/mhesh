@@ -96,28 +96,36 @@ export const STYLE_TEMPLATES: StyleTemplateInfo[] = [
   },
 ];
 
+export const CAMPAIGN_STYLES = STYLE_TEMPLATES;
+
 export interface StyleCardProps {
-  template: StyleTemplate | StyleTemplateInfo;
+  template?: StyleTemplate | StyleTemplateInfo;
+  styleOption?: StyleTemplate | StyleTemplateInfo;
   selected?: boolean;
+  isSelected?: boolean;
   onSelect?: (templateId: StyleTemplate) => void;
   className?: string;
 }
 
 export function StyleCard({
   template,
+  styleOption,
   selected = false,
+  isSelected,
   onSelect,
   className = "",
 }: StyleCardProps) {
+  const chosen = (template || styleOption) as StyleTemplate | StyleTemplateInfo;
+  const isSel = isSelected !== undefined ? isSelected : selected;
   const info: StyleTemplateInfo =
-    typeof template === "string"
-      ? STYLE_TEMPLATES.find((t) => t.id === template) || {
-          id: template as StyleTemplate,
-          name: template.replace(/_/g, " "),
+    typeof chosen === "string"
+      ? STYLE_TEMPLATES.find((t) => t.id === chosen) || {
+          id: chosen as StyleTemplate,
+          name: chosen.replace(/_/g, " "),
           description: "Campaign visual template",
           icon: Megaphone,
         }
-      : template;
+      : chosen;
 
   const Icon = info.icon;
 
@@ -125,7 +133,7 @@ export function StyleCard({
     <div
       onClick={() => onSelect?.(info.id)}
       className={`group relative flex cursor-pointer flex-col justify-between rounded-2xl border p-4 transition-all duration-200 ${
-        selected
+        isSel
           ? "border-emerald-600 bg-emerald-50/40 ring-2 ring-emerald-500/30 dark:border-emerald-500 dark:bg-emerald-950/20"
           : "border-black/10 bg-white hover:border-black/20 hover:bg-neutral-50/50 dark:border-white/10 dark:bg-neutral-900 dark:hover:border-white/20 dark:hover:bg-neutral-800/40"
       } ${className}`}

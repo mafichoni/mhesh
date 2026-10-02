@@ -4,9 +4,11 @@ import React, { useState } from "react";
 import { Flag, AlertTriangle, Check, Loader2, X } from "lucide-react";
 import { api, errorMessage } from "@/lib/api";
 
-interface ReportButtonProps {
+export type ReportKind = "profile" | "image" | "task" | "partner";
+
+export interface ReportButtonProps {
   subjectId: string;
-  kind?: "profile" | "image" | "task" | "partner";
+  kind?: ReportKind;
   title?: string;
   className?: string;
 }
