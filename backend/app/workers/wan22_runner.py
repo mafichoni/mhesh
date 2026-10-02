@@ -73,7 +73,13 @@ def _finalize(src: str, fmt: str, tmp: str, audit: dict) -> str:
     try:
         font = ImageFont.truetype("DejaVuSans-Bold.ttf", size)
     except OSError:
-        font = ImageFont.load_default()
+        try:
+            font = ImageFont.truetype("arial.ttf", size)
+        except OSError:
+            try:
+                font = ImageFont.load_default(size=size)
+            except TypeError:
+                font = ImageFont.load_default()
     x0, y0, x1, y1 = draw.textbbox((0, 0), AI_TAG, font=font)
     pad = size // 2
     bw, bh = x1 - x0 + 2 * pad, y1 - y0 + 2 * pad
