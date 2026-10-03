@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 60 * 24 * 7
     CORS_ORIGINS: str = "http://localhost:3000,https://mhesh.app,https://www.mhesh.app"
+    ADMIN_EMAILS: str = "wainaina.mungai@gmail.com"
 
     # R2 storage
     R2_ACCOUNT_ID: str = ""

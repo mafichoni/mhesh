@@ -47,7 +47,15 @@ async def get_current_user(
     return user
 
 
+def is_admin_email(email: str | None) -> bool:
+    if not email:
+        return False
+    admin_list = {e.strip().lower() for e in get_settings().ADMIN_EMAILS.split(",") if e.strip()}
+    return email.lower() in admin_list
+
+
 async def get_admin_user(user: User = Depends(get_current_user)) -> User:
-    if not user.is_admin:
+    if not (user.is_admin or is_admin_email(user.email)):
         raise HTTPException(403, "Admin only")
     return user
+

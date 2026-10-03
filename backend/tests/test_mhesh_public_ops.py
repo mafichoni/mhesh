@@ -48,3 +48,22 @@ async def test_ops_releases_disputed_task_to_supporter(client, mpesa_mock, monke
     assert (await client.get(f"/api/mhesh/tasks/{t['id']}", headers=h)).json()["status"] == "approved"
     again = await client.post(f"/api/mhesh/ops/escrow/{escrow['id']}/resolve", headers=admin, json={"action": "release"})
     assert again.status_code == 400
+
+
+async def test_admin_email_configuration(client):
+    r = await client.post("/api/auth/register", json={
+        "email": "wainaina.mungai@gmail.com",
+        "password": "strongpassword123",
+        "full_name": "Wainaina Mungai",
+    })
+    assert r.status_code == 200
+    token = r.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    me = (await client.get("/api/auth/me", headers=headers)).json()
+    assert me["is_admin"] is True
+    assert me["email"] == "wainaina.mungai@gmail.com"
+
+    ops_r = await client.get("/api/mhesh/ops/reports", headers=headers)
+    assert ops_r.status_code == 200
+
