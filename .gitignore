@@ -11,3 +11,5 @@ out/
 *.tsbuildinfo
 next-env.d.ts
 .vercel
+.venv/
+.pg_data/
