@@ -54,12 +54,44 @@ interface TaskData {
   reward_kes: number;
 }
 
+const COUNTIES = [
+  "Baringo", "Bomet", "Bungoma", "Busia", "Elgeyo Marakwet", "Embu", "Garissa", "Homa Bay",
+  "Isiolo", "Kajiado", "Kakamega", "Kericho", "Kiambu", "Kilifi", "Kirinyaga", "Kisii",
+  "Kisumu", "Kitui", "Kwale", "Laikipia", "Lamu", "Machakos", "Makueni", "Mandera",
+  "Marsabit", "Meru", "Migori", "Mombasa", "Murang'a", "Nairobi", "Nakuru", "Nandi",
+  "Narok", "Nyamira", "Nyandarua", "Nyeri", "Samburu", "Siaya", "Taita Taveta", "Tana River",
+  "Tharaka Nithi", "Trans Nzoia", "Turkana", "Uasin Gishu", "Vihiga", "Wajir", "West Pokot",
+];
+
+const OFFICES = [
+  { value: "president", label: "President of Kenya" },
+  { value: "governor", label: "County Governor" },
+  { value: "senator", label: "Senator" },
+  { value: "woman_rep", label: "Woman Representative" },
+  { value: "mp", label: "Member of Parliament (MP)" },
+  { value: "mca", label: "Member of County Assembly (MCA)" },
+];
+
 export default function AspirantOverviewPage() {
   const [profile, setProfile] = useState<AspirantData | null>(null);
+  const [needsSetup, setNeedsSetup] = useState(false);
   const [usage, setUsage] = useState<UsageData>({ used_today: 0, daily_limit: 20 });
   const [tasks, setTasks] = useState<TaskData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Setup form state
+  const [setupDisplayName, setSetupDisplayName] = useState("");
+  const [setupOfficialName, setSetupOfficialName] = useState("");
+  const [setupTitlePrefix, setSetupTitlePrefix] = useState("Hon.");
+  const [setupOffice, setSetupOffice] = useState("mp");
+  const [setupCounty, setSetupCounty] = useState("Nairobi");
+  const [setupConstituency, setSetupConstituency] = useState("");
+  const [setupWard, setSetupWard] = useState("");
+  const [setupParty, setSetupParty] = useState("Independent");
+  const [setupWhatsapp, setSetupWhatsapp] = useState("");
+  const [submittingSetup, setSubmittingSetup] = useState(false);
+  const [setupError, setSetupError] = useState<string | null>(null);
 
   // M-Pesa STK verification state
   const [verifyPhone, setVerifyPhone] = useState("");
@@ -71,12 +103,34 @@ export default function AspirantOverviewPage() {
     async function loadData() {
       try {
         setLoading(true);
-        const [profRes, usageRes, tasksRes] = await Promise.all([
-          api.get<AspirantData>("/api/mhesh/aspirants/me"),
+        let prof: AspirantData | null = null;
+        try {
+          const profRes = await api.get<AspirantData>("/api/mhesh/aspirants/me");
+          prof = profRes.data;
+        } catch (err: unknown) {
+          const errorObj = err as { response?: { status?: number } };
+          if (errorObj?.response?.status === 404) {
+            setNeedsSetup(true);
+            try {
+              const u = await api.get<{ full_name?: string }>("/api/auth/me");
+              if (u.data.full_name) {
+                setSetupDisplayName(u.data.full_name);
+                setSetupOfficialName(u.data.full_name);
+              }
+            } catch {
+              // ignore
+            }
+          } else {
+            throw err;
+          }
+        }
+
+        const [usageRes, tasksRes] = await Promise.all([
           api.get<UsageData>("/api/mhesh/studio/usage").catch(() => ({ data: { used_today: 0, daily_limit: 20 } })),
           api.get<TaskData[]>("/api/mhesh/tasks").catch(() => ({ data: [] })),
         ]);
-        setProfile(profRes.data);
+
+        if (prof) setProfile(prof);
         setUsage(usageRes.data);
         setTasks(tasksRes.data);
       } catch (err) {
@@ -89,6 +143,39 @@ export default function AspirantOverviewPage() {
     }
     loadData();
   }, []);
+
+  const handleCreateProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!setupDisplayName.trim()) {
+      setSetupError("Candidate name is required");
+      return;
+    }
+
+    setSubmittingSetup(true);
+    setSetupError(null);
+
+    try {
+      const payload = {
+        display_name: setupDisplayName.trim(),
+        official_name: setupOfficialName.trim() || null,
+        title_prefix: setupTitlePrefix.trim() || null,
+        party: setupParty.trim() || null,
+        office: setupOffice,
+        county: setupCounty,
+        constituency: setupConstituency.trim() || null,
+        ward: setupWard.trim() || null,
+        whatsapp_public: setupWhatsapp.trim() || null,
+      };
+
+      const res = await api.post<AspirantData>("/api/mhesh/aspirants/me", payload);
+      setProfile(res.data);
+      setNeedsSetup(false);
+    } catch (err) {
+      setSetupError(errorMessage(err, "Failed to create campaign profile"));
+    } finally {
+      setSubmittingSetup(false);
+    }
+  };
 
   const calculateCompleteness = (p: AspirantData) => {
     let score = 0;
@@ -122,6 +209,163 @@ export default function AspirantOverviewPage() {
     return (
       <div className="flex h-96 items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-emerald-700" />
+      </div>
+    );
+  }
+
+  if (needsSetup) {
+    return (
+      <div className="mx-auto max-w-2xl space-y-6 rounded-2xl border border-stone-200 bg-white p-8 shadow-sm">
+        <div className="text-center">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-700 text-white shadow-md">
+            <Sparkles size={28} />
+          </div>
+          <h2 className="mt-4 text-2xl font-black tracking-tight text-stone-900 font-serif">
+            Set Up Your 2027 Campaign Profile
+          </h2>
+          <p className="mt-1 text-xs text-stone-500">
+            Welcome to Mhesh! Enter your political candidacy details to activate your official campaign dashboard and public page.
+          </p>
+        </div>
+
+        {setupError && (
+          <div className="flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50 p-3.5 text-xs text-rose-800">
+            <AlertTriangle size={16} className="mt-0.5 shrink-0 text-rose-600" />
+            <span>{setupError}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleCreateProfile} className="space-y-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+            <div className="sm:col-span-1">
+              <label className="block text-xs font-bold text-stone-700">Prefix</label>
+              <input
+                type="text"
+                value={setupTitlePrefix}
+                onChange={(e) => setSetupTitlePrefix(e.target.value)}
+                placeholder="Hon."
+                className="mt-1 w-full rounded-xl border border-stone-300 px-3.5 py-2.5 text-sm focus:border-emerald-700 focus:outline-none"
+              />
+            </div>
+            <div className="sm:col-span-3">
+              <label className="block text-xs font-bold text-stone-700">Candidate Campaign Name *</label>
+              <input
+                type="text"
+                value={setupDisplayName}
+                onChange={(e) => setSetupDisplayName(e.target.value)}
+                placeholder="e.g. Sarah Wanjiku Mwangi"
+                required
+                className="mt-1 w-full rounded-xl border border-stone-300 px-3.5 py-2.5 text-sm focus:border-emerald-700 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="block text-xs font-bold text-stone-700">Official Name (ID / Passport)</label>
+              <input
+                type="text"
+                value={setupOfficialName}
+                onChange={(e) => setSetupOfficialName(e.target.value)}
+                placeholder="e.g. Sarah Wanjiku Mwangi"
+                className="mt-1 w-full rounded-xl border border-stone-300 px-3.5 py-2.5 text-sm focus:border-emerald-700 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-stone-700">Political Party</label>
+              <input
+                type="text"
+                value={setupParty}
+                onChange={(e) => setSetupParty(e.target.value)}
+                placeholder="e.g. Independent, UDA, ODM"
+                className="mt-1 w-full rounded-xl border border-stone-300 px-3.5 py-2.5 text-sm focus:border-emerald-700 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="block text-xs font-bold text-stone-700">Office Sought *</label>
+              <select
+                value={setupOffice}
+                onChange={(e) => setSetupOffice(e.target.value)}
+                className="mt-1 w-full rounded-xl border border-stone-300 bg-white px-3.5 py-2.5 text-sm focus:border-emerald-700 focus:outline-none"
+              >
+                {OFFICES.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-stone-700">County *</label>
+              <select
+                value={setupCounty}
+                onChange={(e) => setSetupCounty(e.target.value)}
+                className="mt-1 w-full rounded-xl border border-stone-300 bg-white px-3.5 py-2.5 text-sm focus:border-emerald-700 focus:outline-none"
+              >
+                {COUNTIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="block text-xs font-bold text-stone-700">Constituency (if MP / MCA)</label>
+              <input
+                type="text"
+                value={setupConstituency}
+                onChange={(e) => setSetupConstituency(e.target.value)}
+                placeholder="e.g. Westlands, Dagoretti North"
+                className="mt-1 w-full rounded-xl border border-stone-300 px-3.5 py-2.5 text-sm focus:border-emerald-700 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-stone-700">Ward (if MCA)</label>
+              <input
+                type="text"
+                value={setupWard}
+                onChange={(e) => setSetupWard(e.target.value)}
+                placeholder="e.g. Parklands, Kilimani"
+                className="mt-1 w-full rounded-xl border border-stone-300 px-3.5 py-2.5 text-sm focus:border-emerald-700 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-stone-700">Public WhatsApp Campaign Number</label>
+            <input
+              type="tel"
+              value={setupWhatsapp}
+              onChange={(e) => setSetupWhatsapp(e.target.value)}
+              placeholder="e.g. 0712345678"
+              className="mt-1 w-full rounded-xl border border-stone-300 px-3.5 py-2.5 text-sm focus:border-emerald-700 focus:outline-none"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={submittingSetup}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 py-3 text-sm font-bold text-white shadow-md transition hover:bg-emerald-800 disabled:opacity-50"
+          >
+            {submittingSetup ? (
+              <span className="inline-flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Activating Campaign Profile...
+              </span>
+            ) : (
+              <>
+                <span>Launch My Campaign Profile</span>
+                <ArrowRight size={16} />
+              </>
+            )}
+          </button>
+        </form>
       </div>
     );
   }

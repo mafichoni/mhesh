@@ -61,7 +61,7 @@ export default function AspirantDashboardLayout({
   useEffect(() => {
     const token = getToken();
     if (!token) {
-      router.push("/mhesh");
+      router.push(`/mhesh/login?redirect=${encodeURIComponent(pathname || "/mhesh/dashboard")}`);
       return;
     }
 
@@ -73,6 +73,25 @@ export default function AspirantDashboardLayout({
       } catch (err) {
         if (isUnauthorized(err)) {
           logout();
+        } else {
+          // If profile not yet created (404), fetch basic user info
+          try {
+            const userRes = await api.get<{ full_name?: string; email?: string }>("/api/auth/me");
+            if (active && userRes.data) {
+              setAspirant({
+                id: "",
+                slug: "",
+                display_name: userRes.data.full_name || userRes.data.email || "Candidate",
+                office: "Aspirant",
+                county: "Kenya",
+                photo_url: null,
+                verified_mpesa: false,
+                tier: "free",
+              });
+            }
+          } catch {
+            // ignore
+          }
         }
       } finally {
         if (active) setLoading(false);
@@ -82,7 +101,7 @@ export default function AspirantDashboardLayout({
     return () => {
       active = false;
     };
-  }, [router]);
+  }, [router, pathname]);
 
   const isActive = (item: NavItem) => {
     if (item.exact) {

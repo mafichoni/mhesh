@@ -69,21 +69,20 @@ export default function MheshLayout({
           </div>
 
           {/* Action CTAs */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
             <Link
-              href="/mhesh/partners"
-              className="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+              href="/mhesh/login"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-300 px-3.5 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
             >
-              <Printer size={13} />
-              Partner Directory
+              <UserCircle2 size={15} />
+              <span>Login</span>
             </Link>
 
             <Link
-              href="/mhesh/dashboard"
-              className="inline-flex items-center gap-2 rounded-xl bg-[#0B6E4F] px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-800 active:scale-95"
+              href="/mhesh/register"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-[#0B6E4F] px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-800 active:scale-95"
             >
-              <UserCircle2 size={16} />
-              <span>Aspirant Login</span>
+              <span>Get Started</span>
             </Link>
           </div>
         </div>

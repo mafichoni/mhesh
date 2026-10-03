@@ -8,12 +8,12 @@ class Settings(BaseSettings):
 
     # Core
     ENV: str = "development"
-    DATABASE_URL: str = "postgresql+asyncpg://mhesh:mhesh@localhost:5432/mhesh"
+    DATABASE_URL: str = "postgresql+asyncpg://mhesh:mhesh@localhost:5435/mhesh"
     REDIS_URL: str = "redis://localhost:6379/0"
     JWT_SECRET: str = "change-me"
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 60 * 24 * 7
-    CORS_ORIGINS: str = "http://localhost:3000,https://mhesh.app,https://www.mhesh.app"
+    CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000,http://127.0.0.1:8000,https://mhesh.app,https://www.mhesh.app,https://mhesh.co.ke,https://www.mhesh.co.ke"
     ADMIN_EMAILS: str = "wainaina.mungai@gmail.com"
 
     # R2 storage
@@ -56,7 +56,7 @@ class Settings(BaseSettings):
 
     # Mhesh
     MHESH_PUBLIC_URL: str = "https://mhesh.app"
-    MHESH_ODPC_REGISTERED: bool = False
+    MHESH_ODPC_REGISTERED: bool = True
     MHESH_BLACKOUT_START: str = "2027-08-05T00:00:00+03:00"
     MHESH_BLACKOUT_END: str = "2027-08-11T00:00:00+03:00"
     MHESH_VERIFY_KES: int = 1

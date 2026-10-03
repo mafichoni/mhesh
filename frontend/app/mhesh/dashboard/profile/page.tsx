@@ -83,6 +83,8 @@ export default function EditProfilePage() {
     achievements: [],
   });
 
+  const [isNew, setIsNew] = useState(false);
+
   useEffect(() => {
     async function loadProfile() {
       try {
@@ -103,8 +105,19 @@ export default function EditProfilePage() {
           achievements: Array.isArray(d.achievements) ? d.achievements : [],
           photo_url: d.photo_url || null,
         });
-      } catch (err) {
-        if (!isUnauthorized(err)) {
+      } catch (err: unknown) {
+        const errorObj = err as { response?: { status?: number } };
+        if (errorObj?.response?.status === 404) {
+          setIsNew(true);
+          try {
+            const userRes = await api.get<{ full_name?: string }>("/api/auth/me");
+            if (userRes.data?.full_name) {
+              setForm((prev) => ({ ...prev, display_name: userRes.data.full_name || "" }));
+            }
+          } catch {
+            // ignore
+          }
+        } else if (!isUnauthorized(err)) {
           setErrorMsg(errorMessage(err, "Failed to load profile details"));
         }
       } finally {
@@ -153,36 +166,69 @@ export default function EditProfilePage() {
     setSuccessMsg(null);
 
     try {
-      const payload = {
-        display_name: form.display_name.trim(),
-        official_name: form.official_name.trim() || null,
-        title_prefix: form.title_prefix.trim() || null,
-        party: form.party.trim() || null,
-        office: form.office,
-        county: form.county,
-        constituency: form.constituency.trim() || null,
-        ward: form.ward.trim() || null,
-        whatsapp_public: form.whatsapp_public.trim() || null,
-        manifesto: form.manifesto.filter((m) => m.title.trim() && m.description.trim()),
-        achievements: form.achievements.filter((a) => a.title.trim() && a.description.trim()),
-      };
+      if (isNew) {
+        const createPayload = {
+          display_name: form.display_name.trim(),
+          official_name: form.official_name.trim() || null,
+          title_prefix: form.title_prefix.trim() || null,
+          party: form.party.trim() || null,
+          office: form.office,
+          county: form.county,
+          constituency: form.constituency.trim() || null,
+          ward: form.ward.trim() || null,
+          whatsapp_public: form.whatsapp_public.trim() || null,
+        };
+        const createRes = await api.post("/api/mhesh/aspirants/me", createPayload);
+        setIsNew(false);
 
-      const res = await api.patch("/api/mhesh/aspirants/me", payload);
-      setForm((prev) => ({
-        ...prev,
-        display_name: res.data.display_name,
-        official_name: res.data.official_name || "",
-        title_prefix: res.data.title_prefix || "",
-        party: res.data.party || "",
-        office: res.data.office,
-        county: res.data.county,
-        constituency: res.data.constituency || "",
-        ward: res.data.ward || "",
-        whatsapp_public: res.data.whatsapp_public || "",
-        manifesto: res.data.manifesto || [],
-        achievements: res.data.achievements || [],
-      }));
-      setSuccessMsg("Candidate profile saved successfully!");
+        // If user also added manifesto or achievements, patch them now
+        const hasExtra = (form.manifesto.some((m) => m.title.trim() && m.description.trim())) ||
+                         (form.achievements.some((a) => a.title.trim() && a.description.trim()));
+        if (hasExtra) {
+          const patchPayload = {
+            manifesto: form.manifesto.filter((m) => m.title.trim() && m.description.trim()),
+            achievements: form.achievements.filter((a) => a.title.trim() && a.description.trim()),
+          };
+          const patchRes = await api.patch("/api/mhesh/aspirants/me", patchPayload);
+          setForm((prev) => ({
+            ...prev,
+            manifesto: patchRes.data.manifesto || [],
+            achievements: patchRes.data.achievements || [],
+          }));
+        }
+        setSuccessMsg("Candidate campaign profile successfully created!");
+      } else {
+        const payload = {
+          display_name: form.display_name.trim(),
+          official_name: form.official_name.trim() || null,
+          title_prefix: form.title_prefix.trim() || null,
+          party: form.party.trim() || null,
+          office: form.office,
+          county: form.county,
+          constituency: form.constituency.trim() || null,
+          ward: form.ward.trim() || null,
+          whatsapp_public: form.whatsapp_public.trim() || null,
+          manifesto: form.manifesto.filter((m) => m.title.trim() && m.description.trim()),
+          achievements: form.achievements.filter((a) => a.title.trim() && a.description.trim()),
+        };
+
+        const res = await api.patch("/api/mhesh/aspirants/me", payload);
+        setForm((prev) => ({
+          ...prev,
+          display_name: res.data.display_name,
+          official_name: res.data.official_name || "",
+          title_prefix: res.data.title_prefix || "",
+          party: res.data.party || "",
+          office: res.data.office,
+          county: res.data.county,
+          constituency: res.data.constituency || "",
+          ward: res.data.ward || "",
+          whatsapp_public: res.data.whatsapp_public || "",
+          manifesto: res.data.manifesto || [],
+          achievements: res.data.achievements || [],
+        }));
+        setSuccessMsg("Candidate profile saved successfully!");
+      }
     } catch (err) {
       setErrorMsg(errorMessage(err, "Failed to save profile changes"));
     } finally {

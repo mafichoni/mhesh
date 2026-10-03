@@ -3,7 +3,7 @@ import uuid
 from collections.abc import AsyncIterator
 from typing import Any
 
-os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://mhesh:mhesh@localhost:5432/mhesh_test")
+os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://mhesh:mhesh@localhost:5435/mhesh_test")
 os.environ["MHESH_ODPC_REGISTERED"] = "true"
 os.environ["MHESH_BLACKOUT_START"] = "2027-08-05T00:00:00+03:00"
 os.environ["MPESA_CALLBACK_SECRET"] = ""
